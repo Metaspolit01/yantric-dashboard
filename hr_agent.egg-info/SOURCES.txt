@@ -1,0 +1,8 @@
+README.md
+pyproject.toml
+hr_agent.egg-info/PKG-INFO
+hr_agent.egg-info/SOURCES.txt
+hr_agent.egg-info/dependency_links.txt
+hr_agent.egg-info/requires.txt
+hr_agent.egg-info/top_level.txt
+tests/test_agent.py

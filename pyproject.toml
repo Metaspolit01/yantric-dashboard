@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hr-agent"
+version = "0.1.0"
+description = "Sample LiveKit Cloud voice agent using Sarvam STT/TTS"
+requires-python = ">=3.10"
+dependencies = [
+  "livekit-agents[sarvam]>=1.6.1",
+  "python-dotenv>=1.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0",
+  "pytest-asyncio>=0.24.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
