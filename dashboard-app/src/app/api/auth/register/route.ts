@@ -44,12 +44,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Ensure profile row exists in public.profiles
+    // Ensure profile row exists in public.profiles — no free credits, must purchase via UPI
     await supabase.from('profiles').upsert({
       id: authData.user.id,
       email: authData.user.email!,
       name: name.trim(),
-      credits: 100,
+      credits: 0,
       plan: 'free',
     }, { onConflict: 'id' });
 

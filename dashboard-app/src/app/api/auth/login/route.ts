@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
         id: data.user.id,
         email: data.user.email,
         name: profile?.name,
-        credits: profile?.credits ?? 500,
+        credits: profile?.credits ?? 0,
       },
     });
 

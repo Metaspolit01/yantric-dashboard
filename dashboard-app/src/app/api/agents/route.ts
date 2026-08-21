@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
         id: session.userId,
         email: session.email,
         name: session.name || session.email.split('@')[0],
-        credits: 100,
+        credits: 0,
         plan: 'free',
       });
     }
