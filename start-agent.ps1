@@ -1,4 +1,4 @@
-﻿# ============================================================
+# ============================================================
 #  Yantric Agent Worker — Start Script
 #  Run this in a SEPARATE terminal alongside `npm run dev`
 #
