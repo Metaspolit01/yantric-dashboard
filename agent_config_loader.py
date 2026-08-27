@@ -29,7 +29,7 @@ class YantricAgentConfig:
     system_prompt: str
     greeting_message: str
     language: str  # Primary language (backward compatibility)
-    languages: list[str]  # Array of supported languages
+    languages: list[str]  # Array of supported languages (primary first)
     voice: str
     llm_model: str
     stt_language: str
