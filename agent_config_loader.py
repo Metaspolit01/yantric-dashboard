@@ -28,7 +28,8 @@ class YantricAgentConfig:
     business_name: str
     system_prompt: str
     greeting_message: str
-    language: str
+    language: str  # Primary language (backward compatibility)
+    languages: list[str]  # Array of supported languages
     voice: str
     llm_model: str
     stt_language: str
@@ -81,17 +82,26 @@ def load_agent_config(agent_id: str) -> YantricAgentConfig:
 
     log.info(f"[Yantric] Config loaded: {data.get('name')} for {data.get('business_name')}")
 
+    # Handle both single language (string) and multiple languages (array)
+    primary_language = data.get("language", "en-IN")
+    languages_data = data.get("languages", [])
+    
+    # If languages array is not provided or empty, use the primary language as default
+    if not languages_data or not isinstance(languages_data, list) or len(languages_data) == 0:
+        languages_data = [primary_language] if primary_language else ["en-IN"]
+    
     return YantricAgentConfig(
         agent_id=data["agent_id"],
         name=data["name"],
         business_name=data["business_name"],
         system_prompt=data["system_prompt"],
         greeting_message=data["greeting_message"],
-        language=data.get("language", "en-IN"),
+        language=primary_language,
+        languages=languages_data,
         voice=data.get("voice", "priya"),
         llm_model=data.get("llm_model", "google/gemma-4-31b-it"),
-        stt_language=data.get("stt_language", "en-IN"),
-        tts_language=data.get("tts_language", "en-IN"),
+        stt_language=primary_language,
+        tts_language=primary_language,
         tts_speaker=data.get("tts_speaker", "priya"),
     )
 
