@@ -459,6 +459,12 @@ async def voice_agent_entrypoint(ctx: JobContext) -> None:
     # Wait for participant to join before greeting
     await ctx.wait_for_participant()
 
+    # Start recording - LiveKit will handle upload via webhook
+    # Recording configuration is handled by LiveKit Cloud/Server settings
+    # The webhook will receive the recording URL and store it in Supabase
+    if config and config.agent_id:
+        log.info(f"[Yantric] Call recording will be available after call completion for agent {agent_id}")
+
     # Use the config greeting if available, otherwise use env var or default
     greeting = (
         config.greeting_message

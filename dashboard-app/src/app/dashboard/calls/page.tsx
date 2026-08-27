@@ -1,7 +1,7 @@
 import { getOptionalSession } from "@/lib/guards";
 import { createAdminClient } from "@/lib/supabase-admin";
 import Link from "next/link";
-import { Phone, Clock, Zap } from "lucide-react";
+import { Phone, Clock, Zap, Play } from "lucide-react";
 import GuestGate from "@/components/dashboard/GuestGate";
 
 function formatDur(s: number) {
@@ -35,7 +35,7 @@ export default async function CallsPage() {
 
   const { data: calls } = await supabase
     .from("calls")
-    .select("id, status, duration_seconds, credits_used, started_at, ended_at, agents(name, business_name)")
+    .select("id, status, duration_seconds, credits_used, started_at, ended_at, recording_url, agents(name, business_name)")
     .eq("user_id", session.userId)
     .order("started_at", { ascending: false })
     .limit(100);
@@ -64,18 +64,19 @@ export default async function CallsPage() {
       ) : (
         <div className="glass-card rounded-2xl overflow-hidden">
           {/* Table header */}
-          <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-5 py-3 border-b border-white/[0.05] text-xs font-semibold text-white/40 uppercase tracking-wider">
+          <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-4 px-5 py-3 border-b border-white/[0.05] text-xs font-semibold text-white/40 uppercase tracking-wider">
             <span>Agent</span>
             <span className="text-right">Date</span>
             <span className="text-right">Duration</span>
             <span className="text-right">Credits</span>
+            <span className="text-right">Recording</span>
             <span className="text-right">Status</span>
           </div>
 
           {/* Rows */}
           <div className="divide-y divide-white/[0.03]">
             {calls.map(call => (
-              <div key={call.id} className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-4 px-5 py-4 hover:bg-white/[0.02] transition-colors items-center">
+              <div key={call.id} className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-4 px-5 py-4 hover:bg-white/[0.02] transition-colors items-center">
                 <div className="min-w-0">
                   {/* @ts-expect-error – Supabase join */}
                   <div className="text-sm font-medium text-white truncate">{call.agents?.name || "Unknown Agent"}</div>
@@ -88,6 +89,17 @@ export default async function CallsPage() {
                 </div>
                 <div className="text-sm text-[#9d61ff] text-right shrink-0 flex items-center justify-end gap-1">
                   <Zap className="w-3 h-3" />{call.credits_used || 0}
+                </div>
+                <div className="text-right shrink-0">
+                  {call.recording_url ? (
+                    <audio controls className="h-8 w-32" src={call.recording_url}>
+                      <a href={call.recording_url} download className="text-xs text-[#00E5FF] hover:underline flex items-center justify-end gap-1">
+                        <Play className="w-3 h-3" /> Play
+                      </a>
+                    </audio>
+                  ) : (
+                    <span className="text-xs text-white/30">No recording</span>
+                  )}
                 </div>
                 <div className="flex items-center justify-end gap-1.5 shrink-0">
                   <StatusDot status={call.status} />
