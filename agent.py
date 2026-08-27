@@ -141,20 +141,26 @@ class YantricAssistant(Agent):
     """
     A dynamic Yantric voice agent that loads its personality and
     instructions from the Yantric Dashboard API based on agent_id.
+    
+    Supports multi-language conversations with automatic language detection.
     """
 
     def __init__(self, config: YantricAgentConfig | None = None) -> None:
         if config is not None:
             system_prompt = config.system_prompt
             llm_model = config.llm_model
+            
+            # Build enhanced system prompt with multi-language instructions
+            enhanced_prompt = self._build_multilingual_system_prompt(config)
+            
             log.info(
                 f"[Yantric] Initializing agent: {config.name} "
                 f"for {config.business_name} "
-                f"(lang={config.language}, voice={config.voice})"
+                f"(languages={config.languages}, voice={config.voice})"
             )
         else:
             # Fallback: use local prompt file (development mode)
-            system_prompt = _load_fallback_prompt()
+            enhanced_prompt = _load_fallback_prompt()
             llm_model = _require_env("LIVEKIT_LLM_MODEL")
             log.warning(
                 "[Yantric] No agent config loaded — using fallback prompt. "
@@ -163,9 +169,69 @@ class YantricAssistant(Agent):
 
         super().__init__(
             llm=inference.LLM(model=llm_model),
-            instructions=system_prompt,
+            instructions=enhanced_prompt,
         )
         self._config = config
+        self._current_language = config.language if config else "en-IN"
+    
+    def _build_multilingual_system_prompt(self, config: YantricAgentConfig) -> str:
+        """
+        Build an enhanced system prompt that includes multi-language instructions.
+        
+        The agent will:
+        1. Greet in the primary language
+        2. If multiple languages are supported, ask user for their preference
+        3. Detect and switch to the user's language automatically
+        4. Inform users about supported languages if they speak an unsupported language
+        """
+        base_prompt = config.system_prompt
+        
+        languages = config.languages or [config.language]
+        language_names = {
+            "en-IN": "English",
+            "te-IN": "Telugu",
+            "hi-IN": "Hindi",
+            "ta-IN": "Tamil",
+            "kn-IN": "Kannada",
+            "mr-IN": "Marathi",
+            "gu-IN": "Gujarati",
+            "bn-IN": "Bengali",
+        }
+        
+        supported_lang_names = [language_names.get(lang, lang) for lang in languages]
+        
+        if len(languages) > 1:
+            # Multi-language agent - add special instructions
+            multilingual_instructions = f"""
+
+LANGUAGE CAPABILITIES:
+You are a multilingual assistant that speaks {', '.join(supported_lang_names[:-1])} and {supported_lang_names[-1]}.
+
+IMPORTANT LANGUAGE RULES:
+1. When greeting a new caller, first greet them in {languages[0]} (the primary language), then immediately ask which language they prefer to speak in.
+   Example greeting: "Hello! You have reached {config.business_name}. I can speak {', '.join(supported_lang_names[:-1])} and {supported_lang_names[-1]}. Which language would you prefer to talk in?"
+
+2. Once the user speaks in a language, detect their language and respond in the SAME language.
+
+3. If the user speaks in a language you support (one of {', '.join(supported_lang_names)}), continue the conversation in that language.
+
+4. If the user speaks in a language you DON'T support, politely tell them: "I apologize, but I can only speak {', '.join(supported_lang_names[:-1])} and {supported_lang_names[-1]}. Could we continue in one of these languages?"
+
+5. Always respond in the language the user is currently speaking. Do NOT mix languages unless the user mixes them.
+
+6. If the user asks which languages you speak, tell them: "I can speak {', '.join(supported_lang_names[:-1])} and {supported_lang_names[-1]}. Which language would you prefer?"
+"""
+        else:
+            # Single language agent
+            primary_lang_name = language_names.get(languages[0], languages[0])
+            multilingual_instructions = f"""
+
+LANGUAGE CAPABILITIES:
+You speak {primary_lang_name}. All your responses should be in {primary_lang_name}.
+If a user speaks to you in a different language, politely inform them that you can only speak {primary_lang_name} and ask if they can communicate in {primary_lang_name}.
+"""
+        
+        return base_prompt + multilingual_instructions
 
 
 class YantricAssistantWithKnowledge(YantricAssistant):
