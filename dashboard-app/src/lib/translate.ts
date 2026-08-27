@@ -15,7 +15,7 @@ export async function translateGreeting(
   text: string,
   targetCode: string,
 ): Promise<string | null> {
-  const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY || "";
+  const apiKey = process.env.GOOGLE_AI_API_KEY || "";
   const clean = text.trim();
   if (!apiKey || !clean) return null;
 

@@ -26,7 +26,7 @@ const PLACEHOLDER_KEY_PATTERNS = /^paste[-_]|^your[-_]|^xxx|^replace[-_]/i;
 
 export function getEmbeddingConfig(): EmbeddingConfig {
   const apiKey =
-    process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY || '';
+    process.env.GOOGLE_AI_API_KEY || '';
   const enabled = (process.env.EMBEDDING_PROVIDER || '').toLowerCase() === 'google';
 
   // A non-empty but PLACEHOLDER key (e.g. "PASTE-YOUR-KEY") must not put the
