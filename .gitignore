@@ -18,7 +18,6 @@ dist/
 
 # ── Environment files (NEVER commit secrets) ──────────────────────────────────
 .env
-.env.*
 
 # ── Editors & OS ──────────────────────────────────────────────────────────────
 .vscode/
