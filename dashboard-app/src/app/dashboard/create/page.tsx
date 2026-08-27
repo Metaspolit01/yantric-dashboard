@@ -89,6 +89,7 @@ interface FormData {
   responsibilities: string;
   personality: string;
   language: string;
+  languages: string[];
   voice: string;
 }
 
@@ -107,6 +108,7 @@ export default function CreateAgentPage() {
     responsibilities: "",
     personality: "",
     language: "en-IN",
+    languages: ["en-IN"],
     voice: "priya",
   });
 
@@ -115,6 +117,24 @@ export default function CreateAgentPage() {
 
   const updateField = (field: keyof FormData, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const toggleLanguage = (langCode: string) => {
+    setForm(prev => {
+      const currentLangs = prev.languages || [];
+      if (currentLangs.includes(langCode)) {
+        // Remove language if already selected (but keep at least one)
+        if (currentLangs.length > 1) {
+          const newLangs = currentLangs.filter(l => l !== langCode);
+          return { ...prev, languages: newLangs, language: newLangs[0] };
+        }
+        return prev;
+      } else {
+        // Add language
+        const newLangs = [...currentLangs, langCode];
+        return { ...prev, languages: newLangs };
+      }
+    });
   };
 
   const canProceed = () => {
@@ -234,22 +254,27 @@ export default function CreateAgentPage() {
         </div>
 
         <div className="flex flex-col gap-3">
-          <label className="text-xs font-semibold text-white/50 uppercase tracking-wider">Primary Language</label>
+          <label className="text-xs font-semibold text-white/50 uppercase tracking-wider">Supported Languages</label>
+          <p className="text-xs text-white/40 -mt-2">Select all languages your agent should speak. Users can choose their preferred language.</p>
           <div className="grid grid-cols-2 gap-2">
-            {languageOptions.map(opt => (
-              <button
-                key={opt.value}
-                onClick={() => updateField("language", opt.value)}
-                className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
-                  form.language === opt.value
-                    ? "border-[#7C3AED]/50 bg-[#7C3AED]/10 text-white"
-                    : "border-white/[0.07] bg-white/[0.02] text-white/50 hover:border-white/15"
-                }`}
-              >
-                <span className="text-sm font-medium">{opt.label}</span>
-                {form.language === opt.value && <Check className="w-4 h-4 text-[#9d61ff]" />}
-              </button>
-            ))}
+            {languageOptions.map(opt => {
+              const isSelected = form.languages.includes(opt.value);
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => toggleLanguage(opt.value)}
+                  type="button"
+                  className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                    isSelected
+                      ? "border-[#7C3AED]/50 bg-[#7C3AED]/10 text-white"
+                      : "border-white/[0.07] bg-white/[0.02] text-white/50 hover:border-white/15"
+                  }`}
+                >
+                  <span className="text-sm font-medium">{opt.label}</span>
+                  {isSelected && <Check className="w-4 h-4 text-[#9d61ff]" />}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

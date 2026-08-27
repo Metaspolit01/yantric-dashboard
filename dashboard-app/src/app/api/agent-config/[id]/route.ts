@@ -67,17 +67,24 @@ export async function GET(req: NextRequest, { params }: Params) {
   const s = (agent.voice || '').toLowerCase().trim();
   const safeSpeaker = validSpeakers.includes(s) ? s : (speakerMap[s] || 'priya');
 
+  // Handle both single language and multiple languages
+  const primaryLanguage = agent.language || 'en-IN';
+  const languagesArray = Array.isArray(agent.languages) && agent.languages.length > 0 
+    ? agent.languages 
+    : [primaryLanguage];
+
   return NextResponse.json({
     agent_id: agent.id,
     name: agent.name,
     business_name: agent.business_name,
     system_prompt: fullSystemPrompt,
     greeting_message: agent.greeting_message,
-    language: agent.language,        // e.g. "en-IN", "te-IN", "hi-IN"
+    language: primaryLanguage,        // e.g. "en-IN", "te-IN", "hi-IN"
+    languages: languagesArray,        // Array of supported languages e.g. ["en-IN", "te-IN"]
     voice: agent.voice,              // e.g. "priya", "shubh"
     llm_model: agent.llm_model,      // e.g. "google/gemma-4-31b-it"
-    stt_language: agent.language,
-    tts_language: agent.language,
+    stt_language: primaryLanguage,
+    tts_language: primaryLanguage,
     tts_speaker: safeSpeaker,
   });
 }
