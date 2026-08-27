@@ -33,10 +33,15 @@ export default function EditAgentClient({ agent }: Props) {
     setSuccess(false);
 
     try {
+      // Include languages array in the update
+      const payload = {
+        ...form,
+        languages: [form.language], // For edit page, keep single language for now
+      };
       const res = await fetch(`/api/agents/${agent.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();

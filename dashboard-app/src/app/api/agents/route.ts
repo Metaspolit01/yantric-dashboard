@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
       responsibilities,
       personality,
       language = 'en-IN',
+      languages = [language],
       voice = 'priya',
     } = body;
 
@@ -88,6 +89,7 @@ export async function POST(req: NextRequest) {
         responsibilities,
         personality,
         language,
+        languages,
         voice,
         system_prompt,
         greeting_message,
