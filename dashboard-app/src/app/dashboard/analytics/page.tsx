@@ -2,12 +2,21 @@ import { getOptionalSession } from "@/lib/guards";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { BarChart3, TrendingUp, Phone, Clock, Zap, Bot } from "lucide-react";
 import GuestGate from "@/components/dashboard/GuestGate";
+import GuestPromo from "@/components/dashboard/GuestPromo";
 
 export default async function AnalyticsPage() {
   const session = await getOptionalSession();
   const isGuest = !session;
   if (isGuest) {
-    return <GuestGate isGuest={true} featureName="Analytics"><div className="p-8" /></GuestGate>;
+    return (
+      <GuestGate isGuest={true} featureName="Analytics">
+        <GuestPromo
+          icon="analytics"
+          title="Sign in to view analytics"
+          description="Call volumes, minutes, and usage across all your agents."
+        />
+      </GuestGate>
+    );
   }
   const supabase = createAdminClient();
 

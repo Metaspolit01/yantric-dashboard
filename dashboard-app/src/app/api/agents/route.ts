@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase-admin';
 import { generateSystemPrompt, generateGreeting } from '@/lib/prompt-generator';
+import { sanitizeLanguages } from '@/lib/languages';
+import { translateGreeting } from '@/lib/translate';
 
 // GET /api/agents — list all agents for the authenticated user
 export async function GET() {
@@ -35,9 +37,15 @@ export async function POST(req: NextRequest) {
       common_questions,
       responsibilities,
       personality,
-      language = 'en-IN',
       voice = 'priya',
     } = body;
+
+    // Multi-language support: sanitize to Sarvam-TTS-supported codes;
+    // primary language = first selection (backward-compatible `language`).
+    const languages = sanitizeLanguages(body.languages).length > 0
+      ? sanitizeLanguages(body.languages)
+      : sanitizeLanguages([body.language]);
+    const language = languages[0] || 'en-IN';
 
     if (!name || !business_name || !business_description || !target_users || !common_questions || !responsibilities || !personality) {
       return NextResponse.json({ error: 'All 5 business questions are required.' }, { status: 400 });
@@ -52,10 +60,17 @@ export async function POST(req: NextRequest) {
       responsibilities,
       personality,
       language,
+      languages,
       voice,
     });
 
-    const greeting_message = generateGreeting({ business_name, business_description, target_users, common_questions, responsibilities, personality });
+    const greeting_message = generateGreeting({ business_name, business_description, target_users, common_questions, responsibilities, personality, language, languages });
+
+    // Non-English primary language → convert the greeting so the agent
+    // greets in that language (natural code-mixed style).
+    const greeting_spoken = language !== 'en-IN'
+      ? (await translateGreeting(greeting_message, language)) ?? ''
+      : '';
 
     const supabase = createAdminClient();
 
@@ -88,13 +103,45 @@ export async function POST(req: NextRequest) {
         responsibilities,
         personality,
         language,
+        languages,
         voice,
         system_prompt,
         greeting_message,
+        greeting_spoken,
         status: 'active',
       })
       .select()
       .single();
+
+    // Schema drift fallback: if the multi-language columns are not migrated
+    // yet, create the agent with the legacy columns instead of failing.
+    if (error && /column.*(does not exist|could not find)/i.test(error.message)) {
+      console.warn('[CreateAgent] Multi-language columns missing — falling back to legacy insert.');
+      const { data: legacyData, error: legacyError } = await supabase
+        .from('agents')
+        .insert({
+          user_id: session.userId,
+          name,
+          business_name,
+          business_description,
+          target_users,
+          common_questions,
+          responsibilities,
+          personality,
+          language,
+          voice,
+          system_prompt,
+          greeting_message,
+          status: 'active',
+        })
+        .select()
+        .single();
+      if (legacyError) {
+        console.error('Database legacy insert agent error:', legacyError);
+        return NextResponse.json({ error: legacyError.message }, { status: 500 });
+      }
+      return NextResponse.json({ agent: legacyData }, { status: 201 });
+    }
 
     if (error) {
       console.error('Database insert agent error:', error);

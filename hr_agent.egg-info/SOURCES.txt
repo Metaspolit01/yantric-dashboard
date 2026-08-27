@@ -1,5 +1,10 @@
 README.md
+agent.py
+agent_config_loader.py
+dialer.py
+knowledge_client.py
 pyproject.toml
+reporting_client.py
 hr_agent.egg-info/PKG-INFO
 hr_agent.egg-info/SOURCES.txt
 hr_agent.egg-info/dependency_links.txt

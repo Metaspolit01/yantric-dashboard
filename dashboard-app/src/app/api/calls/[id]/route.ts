@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase-admin';
+import { getCreditsPerMinute } from '@/lib/api-auth';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -45,44 +46,33 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const body = await req.json();
   const supabase = createAdminClient();
 
-  const { data, error } = await supabase
-    .from('calls')
-    .update(body)
-    .eq('id', id)
-    .select()
-    .single();
+  // Never accept arbitrary database fields from a browser request.
+  const allowedFields = ['status', 'duration_seconds', 'ended_at', 'transcript', 'summary', 'caller_phone'];
+  const updates = Object.fromEntries(Object.entries(body).filter(([key]) => allowedFields.includes(key)));
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: 'No valid call fields supplied.' }, { status: 400 });
+  }
+
+  const updateQuery = supabase.from('calls').update(updates).eq('id', id);
+  if (session) updateQuery.eq('user_id', session.userId);
+  const { data, error } = await updateQuery.select().single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // If call ended, deduct credits from user
-  if (body.status === 'completed' && body.duration_seconds) {
-    const creditsPerMinute = parseInt(process.env.CREDITS_PER_MINUTE || '2');
-    const minutes = Math.ceil(body.duration_seconds / 60);
-    const creditsUsed = minutes * creditsPerMinute;
+  // If the call was completed, bill it atomically (idempotent — never charges twice).
+  if (body.status === 'completed') {
+    const { error: billingError } = await supabase.rpc('finalize_call_billing', {
+      p_call_id: id,
+      p_duration_seconds:
+        Number.isFinite(body.duration_seconds) && body.duration_seconds >= 0
+          ? Math.round(body.duration_seconds)
+          : null,
+      p_credits_per_minute: getCreditsPerMinute(),
+    });
+    if (billingError) console.error('[CallPatch] Billing failed:', billingError.message);
 
-    // Update call credits_used
-    await supabase.from('calls').update({ credits_used: creditsUsed }).eq('id', id);
-
-    // Get user_id from call
-    const { data: callData } = await supabase.from('calls').select('user_id, agent_id').eq('id', id).single();
-    if (callData) {
-      // Deduct credits from user profile
-      await supabase.rpc('deduct_credits', { p_user_id: callData.user_id, p_amount: creditsUsed });
-
-      // Record credit transaction
-      await supabase.from('credit_transactions').insert({
-        user_id: callData.user_id,
-        amount: -creditsUsed,
-        type: 'usage',
-        description: `Call — ${minutes} minute${minutes !== 1 ? 's' : ''}`,
-        call_id: id,
-      });
-
-      // Update agent totals
-      await supabase.from('agents').update({
-        total_calls: supabase.rpc as unknown as number,
-      }).eq('id', callData.agent_id);
-    }
+    const { data: refreshed } = await supabase.from('calls').select('*').eq('id', id).single();
+    if (refreshed) return NextResponse.json({ call: refreshed });
   }
 
   return NextResponse.json({ call: data });

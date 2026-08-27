@@ -282,6 +282,7 @@ export default async function AgentDetailPage({ params }: Params) {
     .from("agents")
     .select("*")
     .eq("id", id)
+    .eq("user_id", session.userId)
     .neq("status", "deleted")
     .single();
 
@@ -291,12 +292,14 @@ export default async function AgentDetailPage({ params }: Params) {
     .from("knowledge_sources")
     .select("id, type, name, status")
     .eq("agent_id", id)
+    .eq("user_id", session.userId)
     .order("created_at", { ascending: false });
 
   const { data: recentCalls } = await supabase
     .from("calls")
     .select("id, status, duration_seconds, credits_used, started_at")
     .eq("agent_id", id)
+    .eq("user_id", session.userId)
     .order("started_at", { ascending: false })
     .limit(5);
 

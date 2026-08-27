@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bot, ChevronRight, ChevronLeft, Check, Loader2, Building2, Users, HelpCircle, Wand2, Smile } from "lucide-react";
 import AuthModal from "@/components/dashboard/AuthModal";
+import { AGENT_LANGUAGES } from "@/lib/languages";
 
 const steps = [
   {
@@ -73,13 +74,6 @@ const voiceOptions = [
   { value: "varun", label: "Varun", desc: "Male · Dynamic & Engaging" },
 ];
 
-const languageOptions = [
-  { value: "en-IN", label: "English (India)" },
-  { value: "te-IN", label: "Telugu" },
-  { value: "hi-IN", label: "Hindi" },
-  { value: "ta-IN", label: "Tamil" },
-];
-
 interface FormData {
   name: string;
   business_name: string;
@@ -89,6 +83,7 @@ interface FormData {
   responsibilities: string;
   personality: string;
   language: string;
+  languages: string[];
   voice: string;
 }
 
@@ -107,6 +102,7 @@ export default function CreateAgentPage() {
     responsibilities: "",
     personality: "",
     language: "en-IN",
+    languages: ["en-IN"],
     voice: "priya",
   });
 
@@ -234,23 +230,59 @@ export default function CreateAgentPage() {
         </div>
 
         <div className="flex flex-col gap-3">
-          <label className="text-xs font-semibold text-white/50 uppercase tracking-wider">Primary Language</label>
-          <div className="grid grid-cols-2 gap-2">
-            {languageOptions.map(opt => (
-              <button
-                key={opt.value}
-                onClick={() => updateField("language", opt.value)}
-                className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
-                  form.language === opt.value
-                    ? "border-[#7C3AED]/50 bg-[#7C3AED]/10 text-white"
-                    : "border-white/[0.07] bg-white/[0.02] text-white/50 hover:border-white/15"
-                }`}
-              >
-                <span className="text-sm font-medium">{opt.label}</span>
-                {form.language === opt.value && <Check className="w-4 h-4 text-[#9d61ff]" />}
-              </button>
-            ))}
+          <label className="text-xs font-semibold text-white/50 uppercase tracking-wider">Languages (select all your customers speak — the agent mirrors each caller)</label>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {AGENT_LANGUAGES.map(opt => {
+              const selected = form.languages.includes(opt.code);
+              return (
+                <button
+                  key={opt.code}
+                  type="button"
+                  onClick={() => {
+                    setForm(prev => {
+                      const has = prev.languages.includes(opt.code);
+                      let next = has
+                        ? prev.languages.filter(c => c !== opt.code)
+                        : [...prev.languages, opt.code];
+                      if (next.length === 0) next = ["en-IN"]; // never allow zero
+                      return { ...prev, languages: next, language: next[0] };
+                    });
+                  }}
+                  className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                    selected
+                      ? "border-[#7C3AED]/50 bg-[#7C3AED]/10 text-white"
+                      : "border-white/[0.07] bg-white/[0.02] text-white/50 hover:border-white/15"
+                  }`}
+                >
+                  <span className="text-sm font-medium">{opt.native}<span className="block text-[10px] opacity-60">{opt.label}</span></span>
+                  {selected && <Check className="w-4 h-4 text-[#9d61ff]" />}
+                </button>
+              );
+            })}
           </div>
+          <p className="text-[11px] text-white/30">
+            The agent detects each caller's language and replies in it.
+            {form.languages.length > 1 && " Choose which one is PRIMARY below — greetings and the default voice use it."}
+          </p>
+          {form.languages.length > 1 && (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-white/50 uppercase tracking-wider">Primary Language</label>
+              <select
+                value={form.language}
+                onChange={e => setForm(prev => {
+                  const primary = e.target.value;
+                  return { ...prev, language: primary, languages: [primary, ...prev.languages.filter(c => c !== primary)] };
+                })}
+                className="yantric-input bg-[#0f101a] text-white max-w-xs"
+              >
+                {form.languages.map(code => (
+                  <option key={code} value={code} className="bg-[#12121a]">
+                    {AGENT_LANGUAGES.find(l => l.code === code)?.label ?? code}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       </div>
     );

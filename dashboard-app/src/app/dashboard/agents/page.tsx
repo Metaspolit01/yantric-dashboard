@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase-admin";
 import Link from "next/link";
 import { Bot, Plus, Phone, Clock, Zap, MoreHorizontal } from "lucide-react";
 import GuestGate from "@/components/dashboard/GuestGate";
+import GuestPromo from "@/components/dashboard/GuestPromo";
 
 function StatusBadge({ status }: { status: string }) {
   const cfg: Record<string, { cls: string; dot: string }> = {
@@ -23,7 +24,15 @@ export default async function AgentsPage() {
   const session = await getOptionalSession();
   const isGuest = !session;
   if (isGuest) {
-    return <GuestGate isGuest={true} featureName="My Agents"><div className="p-8" /></GuestGate>;
+    return (
+      <GuestGate isGuest={true} featureName="My Agents">
+        <GuestPromo
+          icon="agents"
+          title="Sign in to view your agents"
+          description="Create, configure, and test your AI voice agents."
+        />
+      </GuestGate>
+    );
   }
   const supabase = createAdminClient();
 

@@ -1,13 +1,22 @@
 import { getOptionalSession } from "@/lib/guards";
 import { createAdminClient } from "@/lib/supabase-admin";
 import GuestGate from "@/components/dashboard/GuestGate";
+import GuestPromo from "@/components/dashboard/GuestPromo";
 import CreditsClient from "./CreditsClient";
 
 export default async function CreditsPage() {
   const session = await getOptionalSession();
   const isGuest = !session;
   if (isGuest) {
-    return <GuestGate isGuest={true} featureName="Credits"><div className="p-8" /></GuestGate>;
+    return (
+      <GuestGate isGuest={true} featureName="Credits">
+        <GuestPromo
+          icon="credits"
+          title="Sign in to view your credits"
+          description="Your balance, usage history, and UPI top-ups live here."
+        />
+      </GuestGate>
+    );
   }
   const supabase = createAdminClient();
 

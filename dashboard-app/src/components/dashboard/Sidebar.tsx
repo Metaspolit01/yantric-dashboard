@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import {
-  LayoutDashboard, Bot, Plus, BookOpen, Phone, BarChart3,
+  LayoutDashboard, Bot, Plus, BookOpen, Phone, PhoneCall, BarChart3,
   CreditCard, Settings, LogOut, Menu, X, Zap
 } from "lucide-react";
 
@@ -14,6 +14,7 @@ const navItems = [
   { href: "/dashboard/create", label: "Create Agent", icon: Plus, highlight: true },
   { href: "/dashboard/knowledge", label: "Knowledge Base", icon: BookOpen },
   { href: "/dashboard/calls", label: "Calls", icon: Phone },
+  { href: "/dashboard/campaigns", label: "Campaigns", icon: PhoneCall },
   { href: "/dashboard/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/dashboard/credits", label: "Credits", icon: CreditCard },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },

@@ -18,15 +18,36 @@ export async function POST(_req: NextRequest, { params }: Params) {
     .from('agents')
     .select('id, name, status, user_id')
     .eq('id', agentId)
+    .eq('user_id', session.userId)
     .neq('status', 'deleted')
     .maybeSingle();
 
   if (error || !agent) return NextResponse.json({ error: 'Agent not found.' }, { status: 404 });
 
+  // Low-credit guard (spec §19): never allow silent unpaid usage.
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('credits')
+    .eq('id', session.userId)
+    .single();
+  if (!profile || profile.credits <= 0) {
+    return NextResponse.json(
+      {
+        error: 'You are out of credits. Buy a credit pack to start test calls.',
+        needsCredits: true,
+      },
+      { status: 402 },
+    );
+  }
+
   const apiKey = process.env.LIVEKIT_API_KEY!;
   const apiSecret = process.env.LIVEKIT_API_SECRET!;
   const livekitUrl = process.env.LIVEKIT_URL!;
   const agentName = process.env.LIVEKIT_AGENT_NAME || 'yantric-agent';
+
+  if (!apiKey || !apiSecret || !livekitUrl) {
+    return NextResponse.json({ error: 'LiveKit is not configured yet.' }, { status: 503 });
+  }
 
   const roomName = `yantric-test-${agentId}-${Date.now()}`;
   const participantIdentity = `dashboard-user-${session.userId}`;
