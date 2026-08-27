@@ -29,13 +29,12 @@ class YantricAgentConfig:
     system_prompt: str
     greeting_message: str
     language: str  # Primary language (backward compatibility)
-    languages: list[str]  # Array of supported languages
+    languages: list[str]  # Array of supported languages (primary first)
     voice: str
     llm_model: str
     stt_language: str
     tts_language: str
     tts_speaker: str
-    languages: list = None  # all spoken languages, primary first (may be None)
     kb_enabled: bool = False  # True → runtime registers the search_knowledge tool (RAG)
 
 
@@ -105,8 +104,6 @@ def load_agent_config(agent_id: str) -> YantricAgentConfig:
         stt_language=primary_language,
         tts_language=primary_language,
         tts_speaker=data.get("tts_speaker", "priya"),
-        languages=[l for l in (data.get("languages") or []) if isinstance(l, str)]
-        or [data.get("language", "en-IN")],
         kb_enabled=bool(data.get("kb_enabled", False)),
     )
 
