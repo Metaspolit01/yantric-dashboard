@@ -35,6 +35,7 @@ class YantricAgentConfig:
     stt_language: str
     tts_language: str
     tts_speaker: str
+    kb_enabled: bool = False  # True → runtime registers the search_knowledge tool (RAG)
 
 
 def load_agent_config(agent_id: str) -> YantricAgentConfig:
@@ -103,6 +104,7 @@ def load_agent_config(agent_id: str) -> YantricAgentConfig:
         stt_language=primary_language,
         tts_language=primary_language,
         tts_speaker=data.get("tts_speaker", "priya"),
+        kb_enabled=bool(data.get("kb_enabled", False)),
     )
 
 
