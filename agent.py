@@ -36,6 +36,7 @@ from livekit.agents import (
 from livekit.api import LiveKitAPI
 from livekit.protocol.connector_twilio import ConnectTwilioCallRequest
 from livekit.plugins import sarvam
+from livekit.plugins.sarvam.llm import LLM as SarvamLLM
 
 from agent_config_loader import (
     YantricAgentConfig,
@@ -143,6 +144,7 @@ class YantricAssistant(Agent):
     instructions from the Yantric Dashboard API based on agent_id.
     
     Supports multi-language conversations with automatic language detection.
+    Uses Sarvam's LLM for better Indian language support (Telugu, Hindi, etc.).
     """
 
     def __init__(self, config: YantricAgentConfig | None = None) -> None:
@@ -167,8 +169,26 @@ class YantricAssistant(Agent):
                 "Set LIVEKIT_AGENT_ID env var or use the dashboard to test."
             )
 
+        # Use Sarvam LLM for better Indian language support when available
+        # Otherwise fall back to the default inference.LLM
+        sarvam_api_key = os.getenv("SARVAM_API_KEY")
+        if sarvam_api_key and config:
+            try:
+                # Use Sarvam's LLM for better multilingual support
+                llm = SarvamLLM(
+                    model="sarvam-105b",  # Sarvam's multilingual model
+                    api_key=sarvam_api_key,
+                    temperature=0.7,  # Balanced creativity/consistency
+                )
+                log.info("[Yantric] Using Sarvam LLM for better multilingual support")
+            except Exception as e:
+                log.warning(f"[Yantric] Failed to initialize Sarvam LLM: {e}. Falling back to default LLM.")
+                llm = inference.LLM(model=llm_model)
+        else:
+            llm = inference.LLM(model=llm_model)
+
         super().__init__(
-            llm=inference.LLM(model=llm_model),
+            llm=llm,
             instructions=enhanced_prompt,
         )
         self._config = config
@@ -183,6 +203,8 @@ class YantricAssistant(Agent):
         2. If multiple languages are supported, ask user for their preference
         3. Detect and switch to the user's language automatically
         4. Inform users about supported languages if they speak an unsupported language
+        
+        Enhanced with Sarvam-specific instructions for better Indian language handling.
         """
         base_prompt = config.system_prompt
         
@@ -202,33 +224,51 @@ class YantricAssistant(Agent):
         
         if len(languages) > 1:
             # Multi-language agent - add special instructions
+            all_but_last = ', '.join(supported_lang_names[:-1])
+            last = supported_lang_names[-1]
+            
             multilingual_instructions = f"""
 
-LANGUAGE CAPABILITIES:
-You are a multilingual assistant that speaks {', '.join(supported_lang_names[:-1])} and {supported_lang_names[-1]}.
+LANGUAGE CAPABILITIES (CRITICAL - FOLLOW THESE RULES STRICTLY):
+You are a multilingual assistant that speaks {all_but_last} and {last}.
 
-IMPORTANT LANGUAGE RULES:
-1. When greeting a new caller, first greet them in {languages[0]} (the primary language), then immediately ask which language they prefer to speak in.
-   Example greeting: "Hello! You have reached {config.business_name}. I can speak {', '.join(supported_lang_names[:-1])} and {supported_lang_names[-1]}. Which language would you prefer to talk in?"
+IMPORTANT LANGUAGE RULES - YOU MUST FOLLOW THESE:
+1. DETECT THE USER'S LANGUAGE FIRST: Listen carefully to what language the user speaks. Then respond in THAT SAME LANGUAGE.
 
-2. Once the user speaks in a language, detect their language and respond in the SAME language.
+2. MIRROR THE USER'S LANGUAGE: 
+   - If the user speaks English, respond ONLY in English
+   - If the user speaks Telugu, respond ONLY in Telugu
+   - If the user speaks Hindi, respond ONLY in Hindi
+   - And so on for all supported languages
+   
+3. INITIAL GREETING: When starting a conversation, greet them and say: "Hello! You have reached {config.business_name}. I can speak {all_but_last} and {last}. Which language would you prefer to talk in?" Then wait for their response and use THEIR chosen language.
 
-3. If the user speaks in a language you support (one of {', '.join(supported_lang_names)}), continue the conversation in that language.
+4. NEVER FORCE A SINGLE LANGUAGE: Do NOT always speak in one language. ALWAYS match the user's language.
 
-4. If the user speaks in a language you DON'T support, politely tell them: "I apologize, but I can only speak {', '.join(supported_lang_names[:-1])} and {supported_lang_names[-1]}. Could we continue in one of these languages?"
+5. LANGUAGE SWITCHING: If the user switches languages mid-conversation, immediately switch to their new language.
 
-5. Always respond in the language the user is currently speaking. Do NOT mix languages unless the user mixes them.
+6. UNSUPPORTED LANGUAGE: If the user speaks a language you don't support, politely say: "I apologize, but I can only speak {all_but_last} and {last}. Could we continue in one of these languages?"
 
-6. If the user asks which languages you speak, tell them: "I can speak {', '.join(supported_lang_names[:-1])} and {supported_lang_names[-1]}. Which language would you prefer?"
+7. THINK IN THE USER'S LANGUAGE: Before responding, identify the language the user just spoke, then formulate your entire response in that language.
+
+EXAMPLE SCENARIOS:
+- User says "Hello" in English → You respond in English
+- User says "Namaste" in Hindi → You respond in Hindi  
+- User says "Namaskaram" in Telugu → You respond in Telugu
+- User asks "What languages do you speak?" → Respond in the language they asked in, listing: "I can speak {all_but_last} and {last}"
 """
         else:
             # Single language agent
             primary_lang_name = language_names.get(languages[0], languages[0])
             multilingual_instructions = f"""
 
-LANGUAGE CAPABILITIES:
-You speak {primary_lang_name}. All your responses should be in {primary_lang_name}.
-If a user speaks to you in a different language, politely inform them that you can only speak {primary_lang_name} and ask if they can communicate in {primary_lang_name}.
+LANGUAGE CAPABILITIES (CRITICAL):
+You speak ONLY {primary_lang_name}. 
+
+IMPORTANT RULES:
+1. ALL responses must be in {primary_lang_name} only.
+2. If a user speaks to you in a different language, politely inform them: "I apologize, but I can only speak {primary_lang_name}. Could we continue in {primary_lang_name}?"
+3. Never respond in any other language except {primary_lang_name}.
 """
         
         return base_prompt + multilingual_instructions

@@ -33,37 +33,52 @@ export function generateSystemPrompt(config: AgentConfig): string {
   let languageInstructions = '';
   
   if (languages.length > 1) {
-    // Multi-language agent
+    // Multi-language agent - Enhanced with Sarvam-specific instructions
     const allButLast = supportedLangNames.slice(0, -1).join(', ');
     const last = supportedLangNames[supportedLangNames.length - 1];
     
     languageInstructions = `
 
-LANGUAGE CAPABILITIES:
+LANGUAGE CAPABILITIES (CRITICAL - FOLLOW THESE RULES STRICTLY):
 You are a multilingual assistant that speaks ${allButLast} and ${last}.
 
-IMPORTANT LANGUAGE RULES:
-1. When greeting a new caller, greet them and immediately tell them which languages you speak, then ask which language they prefer.
-   Example: "Hello! You have reached ${config.business_name}. I can speak ${allButLast} and ${last}. Which language would you prefer to talk in?"
+IMPORTANT LANGUAGE RULES - YOU MUST FOLLOW THESE:
+1. DETECT THE USER'S LANGUAGE FIRST: Listen carefully to what language the user speaks. Then respond in THAT SAME LANGUAGE.
 
-2. Once the user speaks in a language, detect their language and respond in the SAME language.
+2. MIRROR THE USER'S LANGUAGE: 
+   - If the user speaks English, respond ONLY in English
+   - If the user speaks Telugu, respond ONLY in Telugu
+   - If the user speaks Hindi, respond ONLY in Hindi
+   - And so on for all supported languages
+   
+3. INITIAL GREETING: When starting a conversation, greet them and say: "Hello! You have reached ${config.business_name}. I can speak ${allButLast} and ${last}. Which language would you prefer to talk in?" Then wait for their response and use THEIR chosen language.
 
-3. If the user speaks in a language you support (${supportedLangNames.join(', ')}), continue the conversation in that language.
+4. NEVER FORCE A SINGLE LANGUAGE: Do NOT always speak in one language. ALWAYS match the user's language.
 
-4. If the user speaks in a language you DON'T support, politely tell them: "I apologize, but I can only speak ${allButLast} and ${last}. Could we continue in one of these languages?"
+5. LANGUAGE SWITCHING: If the user switches languages mid-conversation, immediately switch to their new language.
 
-5. Always respond in the language the user is currently speaking. Do NOT mix languages unless the user mixes them.
+6. UNSUPPORTED LANGUAGE: If the user speaks a language you don't support, politely say: "I apologize, but I can only speak ${allButLast} and ${last}. Could we continue in one of these languages?"
 
-6. If the user asks which languages you speak, tell them: "I can speak ${allButLast} and ${last}. Which language would you prefer?"
+7. THINK IN THE USER'S LANGUAGE: Before responding, identify the language the user just spoke, then formulate your entire response in that language.
+
+EXAMPLE SCENARIOS:
+- User says "Hello" in English → You respond in English
+- User says "Namaste" in Hindi → You respond in Hindi  
+- User says "Namaskaram" in Telugu → You respond in Telugu
+- User asks "What languages do you speak?" → Respond in the language they asked in, listing: "I can speak ${allButLast} and ${last}"
 `;
   } else {
-    // Single language agent
+    // Single language agent - Enhanced instructions
     const primaryLangName = languageNames[languages[0]] || languages[0];
     languageInstructions = `
 
-LANGUAGE CAPABILITIES:
-You speak ${primaryLangName}. All your responses should be in ${primaryLangName}.
-If a user speaks to you in a different language, politely inform them that you can only speak ${primaryLangName} and ask if they can communicate in ${primaryLangName}.
+LANGUAGE CAPABILITIES (CRITICAL):
+You speak ONLY ${primaryLangName}. 
+
+IMPORTANT RULES:
+1. ALL responses must be in ${primaryLangName} only.
+2. If a user speaks to you in a different language, politely inform them: "I apologize, but I can only speak ${primaryLangName}. Could we continue in ${primaryLangName}?"
+3. Never respond in any other language except ${primaryLangName}.
 `;
   }
 
