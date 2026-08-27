@@ -2,18 +2,6 @@
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
-# Flat module layout: the worker is a set of top-level scripts, not a package.
-# Declare them explicitly so setuptools does not auto-discover non-Python
-# directories like prompts/ and supabase/ as packages.
-[tool.setuptools]
-py-modules = [
-  "agent",
-  "agent_config_loader",
-  "knowledge_client",
-  "reporting_client",
-  "dialer",
-]
-
 [project]
 name = "hr-agent"
 version = "0.1.0"

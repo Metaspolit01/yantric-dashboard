@@ -5,7 +5,6 @@ import Link from "next/link";
 import { ArrowLeft, BookOpen } from "lucide-react";
 import KnowledgeManager from "@/components/dashboard/KnowledgeManager";
 import GuestGate from "@/components/dashboard/GuestGate";
-import GuestPromo from "@/components/dashboard/GuestPromo";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -14,15 +13,7 @@ export default async function AgentKnowledgePage({ params }: Params) {
   const isGuest = !session;
   const { id } = await params;
   if (isGuest) {
-    return (
-      <GuestGate isGuest={true} featureName="Knowledge Base">
-        <GuestPromo
-          icon="knowledge"
-          title="Sign in to manage knowledge"
-          description="Upload PDFs, websites, and documents your agent learns from."
-        />
-      </GuestGate>
-    );
+    return <GuestGate isGuest={true} featureName="Knowledge Base"><div className="p-8" /></GuestGate>;
   }
   const supabase = createAdminClient();
 

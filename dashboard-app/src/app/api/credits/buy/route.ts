@@ -37,13 +37,21 @@ export async function POST(req: NextRequest) {
     // Check if user already claimed the free trial
     const { data: existingFreeTrial } = await supabase
       .from('credit_transactions')
-      .select('id')
+      .select('id, created_at')
       .eq('user_id', session.userId)
       .eq('type', 'free_trial')
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (existingFreeTrial) {
-      return NextResponse.json({ error: 'You have already claimed your free trial credits.' }, { status: 409 });
+      // Check if it was claimed recently (within last 24 hours) to prevent abuse
+      const hoursSinceClaim = (Date.now() - new Date(existingFreeTrial.created_at).getTime()) / (1000 * 60 * 60);
+      if (hoursSinceClaim < 24) {
+        return NextResponse.json({ 
+          error: 'You have already claimed your free trial credits. Please wait 24 hours before claiming again or purchase a paid package.' 
+        }, { status: 409 });
+      }
     }
 
     // Add credits

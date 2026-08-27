@@ -185,6 +185,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS upi_payments_utr_unique
   ON public.upi_payments (utr)
   WHERE utr IS NOT NULL;
 
+-- Index for checking free trial claims quickly
+CREATE INDEX IF NOT EXISTS idx_credit_transactions_user_type
+  ON public.credit_transactions(user_id, type, created_at DESC);
+
 -- ─── credit_transactions ───────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.credit_transactions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

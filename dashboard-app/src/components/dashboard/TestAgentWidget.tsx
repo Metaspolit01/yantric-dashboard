@@ -18,7 +18,6 @@ export default function TestAgentWidget({ agentId, agentName }: Props) {
   const [muted, setMuted] = useState(false);
   const [duration, setDuration] = useState(0);
   const [agentSpeaking, setAgentSpeaking] = useState(false);
-  const [agentJoined, setAgentJoined] = useState(false);
   const [workerStatus, setWorkerStatus] = useState<"stopped" | "starting" | "running" | "error" | "unknown">("unknown");
 
   const roomRef = useRef<Room | null>(null);
@@ -73,7 +72,6 @@ export default function TestAgentWidget({ agentId, agentName }: Props) {
     cleanupAudio();
     setCallState("ended");
     setAgentSpeaking(false);
-    setAgentJoined(false);
     setTimeout(() => setCallState("idle"), 3000);
   }, [stopWorkerPoll]);
 
@@ -81,7 +79,6 @@ export default function TestAgentWidget({ agentId, agentName }: Props) {
     setError("");
     setCallState("connecting");
     setDuration(0);
-    setAgentJoined(false);
     startWorkerPoll();
 
     try {
@@ -121,12 +118,6 @@ export default function TestAgentWidget({ agentId, agentName }: Props) {
         endCall();
       });
 
-      // The agent worker joins the room a moment after we do — track it so we
-      // only tell the user to speak once the agent can actually hear them.
-      room.on(RoomEvent.ParticipantConnected, () => {
-        setAgentJoined(true);
-      });
-
       // Connect WebRTC to LiveKit server
       await room.connect(data.livekitUrl, data.token);
 
@@ -136,11 +127,6 @@ export default function TestAgentWidget({ agentId, agentName }: Props) {
         noiseSuppression: true,
         autoGainControl: true,
       });
-
-      // Agent may already be in the room (fast dispatch / rejoin)
-      if (room.remoteParticipants.size > 0) {
-        setAgentJoined(true);
-      }
 
       setCallState("active");
 
@@ -280,18 +266,8 @@ export default function TestAgentWidget({ agentId, agentName }: Props) {
           )}
           {callState === "active" && (
             <div>
-              {agentJoined ? (
-                <>
-                  <p className="text-white font-semibold text-green-400">● Live — you can start talking</p>
-                  <p className="text-white/40 text-sm mt-0.5 font-mono">{formatDuration(duration)}</p>
-                </>
-              ) : (
-                <>
-                  <p className="text-white font-semibold text-[#00E5FF]">Agent is joining…</p>
-                  <p className="text-white/40 text-sm mt-0.5">Connected — start speaking the moment the agent greets you</p>
-                  <p className="text-white/25 text-xs mt-0.5 font-mono">{formatDuration(duration)}</p>
-                </>
-              )}
+              <p className="text-white font-semibold text-green-400">● Live Voice Conversation</p>
+              <p className="text-white/40 text-sm mt-0.5 font-mono">{formatDuration(duration)}</p>
             </div>
           )}
           {callState === "ended" && (

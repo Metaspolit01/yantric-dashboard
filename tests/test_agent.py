@@ -1,92 +1,96 @@
+import os
 import sys
 from pathlib import Path
 
 import pytest
+from livekit.agents import inference
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import agent
-from agent import resolve_assistant_class
-from agent_config_loader import YantricAgentConfig, extract_agent_id_from_room
-from knowledge_client import search_agent_knowledge
+from agent import Assistant
+
+def test_livekit_model_builds_custom_llm(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeLLM:
+        def __init__(self, model: str, **kwargs: object) -> None:
+            captured["model"] = model
+            captured["kwargs"] = kwargs
+
+    monkeypatch.setenv("LIVEKIT_LLM_MODEL", "google/gemma-4-31b-it")
+    monkeypatch.setattr(agent.inference, "LLM", FakeLLM)
+
+    assistant = Assistant()
+
+    assert assistant is not None
+    assert captured["model"] == "google/gemma-4-31b-it"
+    assert captured["kwargs"] == {}
 
 
-def make_config(**overrides) -> YantricAgentConfig:
-    base = dict(
-        agent_id="a1b2c3d4-0000-1111-2222-333344445555",
-        name="Receptionist",
-        business_name="Test Clinic",
-        system_prompt="You are a clinic assistant.",
-        greeting_message="Hello!",
-        language="en-IN",
-        voice="priya",
-        llm_model="google/gemma-4-31b-it",
-        stt_language="en-IN",
-        tts_language="en-IN",
-        tts_speaker="priya",
-        kb_enabled=False,
-    )
-    base.update(overrides)
-    return YantricAgentConfig(**base)
+def test_build_llm_requires_a_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("LIVEKIT_LLM_MODEL", raising=False)
+
+    with pytest.raises(RuntimeError, match="Missing required environment variable: LIVEKIT_LLM_MODEL"):
+        Assistant()
 
 
-# ─── Room-name → agent_id resolution ─────────────────────────────────────────
+def test_build_twilio_call_payload_uses_env_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TWILIO_TO_NUMBER", "+15551234567")
+    monkeypatch.setenv("TWILIO_FROM_NUMBER", "+15557654321")
+    monkeypatch.setenv("TWILIO_STATUS_CALLBACK_URL", "https://example.com/status")
 
-def test_extract_agent_id_from_test_room():
-    room = f"yantric-test-{make_config().agent_id}-1730000000000"
-    assert extract_agent_id_from_room(room) == make_config().agent_id
+    payload = agent._build_twilio_call_payload("wss://example.com/connect")
 
-
-def test_extract_agent_id_from_production_room():
-    room = f"yantric-{make_config().agent_id}"
-    assert extract_agent_id_from_room(room) == make_config().agent_id
-
-
-def test_extract_agent_id_falls_back_to_env(monkeypatch):
-    monkeypatch.setenv("LIVEKIT_AGENT_ID", "env-agent-id")
-    assert extract_agent_id_from_room("unrelated-room") == "env-agent-id"
+    assert payload["To"] == "+15551234567"
+    assert payload["From"] == "+15557654321"
+    assert '<Stream url="wss://example.com/connect" />' in payload["Twiml"]
+    assert payload["StatusCallback"] == "https://example.com/status"
 
 
-# ─── RAG assistant class selection ───────────────────────────────────────────
+@pytest.mark.asyncio
+async def test_agent_entrypoint_triggers_twilio_call(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
 
-def test_plain_assistant_when_kb_disabled():
-    assert resolve_assistant_class(make_config(kb_enabled=False)) is agent.YantricAssistant
+    class FakeSession:
+        async def start(self, room, agent):
+            calls.append("start")
 
+        async def generate_reply(self, instructions):
+            calls.append(instructions)
 
-def test_rag_assistant_when_kb_enabled():
-    assert resolve_assistant_class(make_config(kb_enabled=True)) is agent.YantricAssistantWithKnowledge
+    class FakeCtx:
+        class Room:
+            name = "room-123"
 
+        room = Room()
 
-def test_rag_assistant_exposes_search_tool():
-    assert getattr(agent.YantricAssistantWithKnowledge, "search_knowledge", None) is not None
+        async def connect(self):
+            calls.append("connect")
 
+        async def wait_for_participant(self):
+            calls.append("wait_for_participant")
 
-def test_plain_assistant_has_no_search_tool():
-    assert getattr(agent.YantricAssistant, "search_knowledge", None) is None
+    async def fake_twilio_call(room_name: str) -> dict[str, object] | None:
+        calls.append(f"room:{room_name}")
+        calls.append("twilio")
+        return {"sid": "CA123"}
 
+    async def fake_connect_url(room_name: str) -> str:
+        calls.append(f"connect-url:{room_name}")
+        return "wss://example.com/connect"
 
-# ─── Voice config validation ─────────────────────────────────────────────────
+    monkeypatch.setenv("LIVEKIT_LLM_MODEL", "google/gemma-4-31b-it")
+    monkeypatch.setenv("TWILIO_AUTO_DIAL_ON_STARTUP", "true")
+    monkeypatch.setattr(agent, "build_session", lambda: FakeSession())
+    monkeypatch.setattr(agent, "_maybe_place_twilio_outbound_call", fake_twilio_call)
+    monkeypatch.setattr(agent, "_get_twilio_connect_url", fake_connect_url)
+    monkeypatch.setattr(agent, "Assistant", lambda: "assistant")
 
-def test_sample_rate_validation():
-    assert agent._validate_sarvam_tts_sample_rate(22050) == 22050
-    with pytest.raises(RuntimeError):
-        agent._validate_sarvam_tts_sample_rate(12345)
+    await agent.voice_agent_entrypoint(FakeCtx())
 
-
-def test_speaker_validation_and_mapping():
-    assert agent._validate_sarvam_tts_speaker("shubh") == "shubh"
-    assert agent._validate_sarvam_tts_speaker("meera") == "priya"  # legacy alias
-    assert agent._validate_sarvam_tts_speaker("does-not-exist") == "priya"  # safe fallback
-
-
-# ─── Knowledge search client ─────────────────────────────────────────────────
-
-def test_empty_query_short_circuits_before_config(monkeypatch):
-    monkeypatch.delenv("YANTRIC_AGENT_API_SECRET", raising=False)
-    assert search_agent_knowledge("any-agent", "   ") == []
-
-
-def test_missing_secret_raises_clear_error(monkeypatch):
-    monkeypatch.delenv("YANTRIC_AGENT_API_SECRET", raising=False)
-    with pytest.raises(RuntimeError, match="YANTRIC_AGENT_API_SECRET"):
-        search_agent_knowledge("any-agent", "clinic timings")
+    assert calls[0] == "start"
+    assert calls[1] == "connect"
+    assert calls[2] == "room:room-123"
+    assert calls[3] == "twilio"
+    assert any("Greet the user warmly" in item for item in calls if isinstance(item, str))

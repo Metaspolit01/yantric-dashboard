@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Loader2, Plus, Trash2, Globe, FileText, Type, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 
 interface KnowledgeSource {
@@ -26,34 +26,6 @@ export default function KnowledgeManager({ agentId, initialSources }: Props) {
   const [form, setForm] = useState({ name: "", content: "", url: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handlePdfUpload = async (file?: File) => {
-    if (!file) return;
-    if (file.type !== "application/pdf") {
-      setError("Please choose a PDF file.");
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      setError("PDF files must be 10 MB or smaller.");
-      return;
-    }
-    setError("");
-    setLoading(true);
-    try {
-      const payload = new FormData();
-      payload.append("file", file);
-      const res = await fetch(`/api/agents/${agentId}/knowledge/pdf`, { method: "POST", body: payload });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || "Could not read the PDF."); return; }
-      setSources(prev => [data.source, ...prev]);
-    } catch {
-      setError("Connection error while uploading the PDF.");
-    } finally {
-      setLoading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
 
   const handleAdd = async () => {
     if (!addMode) return;
@@ -111,10 +83,9 @@ export default function KnowledgeManager({ agentId, initialSources }: Props) {
           <button onClick={() => setAddMode("text")} className="btn-ghost flex items-center gap-2 text-sm">
             <Type className="w-4 h-4" /> Add Text
           </button>
-          <button onClick={() => fileInputRef.current?.click()} disabled={loading} className="btn-ghost flex items-center gap-2 text-sm">
-            <FileText className="w-4 h-4" /> Upload PDF
+          <button disabled className="btn-ghost flex items-center gap-2 text-sm opacity-40 cursor-not-allowed" title="Coming soon">
+            <FileText className="w-4 h-4" /> Upload PDF (coming soon)
           </button>
-          <input ref={fileInputRef} type="file" accept="application/pdf,.pdf" className="hidden" onChange={e => handlePdfUpload(e.target.files?.[0])} />
         </div>
       )}
 
@@ -194,7 +165,7 @@ export default function KnowledgeManager({ agentId, initialSources }: Props) {
           </div>
           <p className="text-white/40 text-sm">No knowledge sources yet.</p>
           <p className="text-white/25 text-xs mt-1 max-w-xs mx-auto">
-            Add a company PDF, business website, or pasted information so your agent can answer questions accurately.
+            Add your business website or paste your company information so your agent can answer questions accurately.
           </p>
         </div>
       ) : (

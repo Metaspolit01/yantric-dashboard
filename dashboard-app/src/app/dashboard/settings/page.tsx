@@ -2,21 +2,12 @@ import { getOptionalSession } from "@/lib/guards";
 import { createAdminClient } from "@/lib/supabase-admin";
 import { Settings, BookOpen } from "lucide-react";
 import GuestGate from "@/components/dashboard/GuestGate";
-import GuestPromo from "@/components/dashboard/GuestPromo";
 
 export default async function SettingsPage() {
   const session = await getOptionalSession();
   const isGuest = !session;
   if (isGuest) {
-    return (
-      <GuestGate isGuest={true} featureName="Settings">
-        <GuestPromo
-          icon="settings"
-          title="Sign in to manage your account"
-          description="Your profile, plan, and account preferences."
-        />
-      </GuestGate>
-    );
+    return <GuestGate isGuest={true} featureName="Settings"><div className="p-8" /></GuestGate>;
   }
   const supabase = createAdminClient();
   const { data: profile } = await supabase.from("profiles").select("*").eq("id", session.userId).single();

@@ -1,85 +1,72 @@
 #!/usr/bin/env python3
 """
-Place a single test outbound call through your Vobiz SIP trunk (via LiveKit)
-and dispatch the Yantric voice agent into the call room.
+Trigger an outbound Twilio phone call and dispatch your LiveKit voice agent to the room.
 
 Usage:
-    1. Make sure the agent worker is running in terminal 1:
+    1. Make sure your agent worker is running in terminal 1:
        uv run python agent.py dev
 
-    2. Place the test call in terminal 2:
-       uv run python make_call.py +919876543210 [agent_id]
-
-       - phone number is required (E.164 format)
-       - agent_id is optional; defaults to LIVEKIT_AGENT_ID in .env
-
-Requires LIVEKIT_SIP_OUTBOUND_TRUNK_ID (your Vobiz outbound trunk) in .env.
+    2. Trigger the phone call in terminal 2:
+       uv run python make_call.py
 """
 
 import asyncio
 import os
 import sys
-import uuid
-
 from dotenv import load_dotenv
+from livekit.api import LiveKitAPI
+from livekit.protocol.agent_dispatch import CreateAgentDispatchRequest
 
 load_dotenv(".env")
 
-from livekit import api as livekit_api
+from agent import _get_twilio_connect_url, _place_twilio_outbound_call_sync
 
+async def place_call():
+    to_number = os.getenv("TWILIO_TO_NUMBER")
+    from_number = os.getenv("TWILIO_FROM_NUMBER")
+    agent_name = os.getenv("LIVEKIT_AGENT_NAME", "HR-agent")
+    room_name = os.getenv("LIVEKIT_ROOM_NAME", f"demo-call-{os.urandom(4).hex()}")
 
-async def place_call(to_number: str, agent_id: str | None) -> None:
-    trunk_id = os.getenv("LIVEKIT_SIP_OUTBOUND_TRUNK_ID", "").strip()
-    agent_name = os.getenv("LIVEKIT_AGENT_NAME", "yantric-agent")
-
-    if not trunk_id or trunk_id.startswith("PASTE"):
-        print("❌ Set LIVEKIT_SIP_OUTBOUND_TRUNK_ID in .env first")
-        print("   (Vobiz console → SIP trunk credentials → LiveKit outbound trunk ID)")
+    if not to_number or not from_number:
+        print("❌ Error: Missing TWILIO_TO_NUMBER or TWILIO_FROM_NUMBER in .env")
         sys.exit(1)
 
-    if agent_id:
-        room_name = f"yantric-{agent_id}-out-test-{uuid.uuid4().hex[:8]}"
-    else:
-        print("⚠️  No agent_id given — worker will use the fallback prompt.")
-        room_name = f"yantric-testcall-{uuid.uuid4().hex[:12]}"
-
-    print("📞 Placing outbound call via Vobiz SIP trunk…")
-    print(f"   From:  {os.getenv('LIVEKIT_SIP_OUTBOUND_TRUNK_ID')}")
+    print(f"📞 Initiating outbound call via Twilio...")
+    print(f"   From:  {from_number}")
     print(f"   To:    {to_number}")
-    print(f"   Agent: {agent_name}" + (f" ({agent_id})" if agent_id else ""))
+    print(f"   Agent: {agent_name}")
     print(f"   Room:  {room_name}")
 
-    lk = livekit_api.LiveKitAPI()
     try:
-        # Dispatch the agent FIRST so it is waiting when the callee answers.
-        await lk.agent_dispatch.create_dispatch(
-            livekit_api.CreateAgentDispatchRequest(
-                room_name=room_name,
-                agent_name=agent_name,
-                metadata=f'{{"source": "test-call"}}',
+        # Step 1: Dispatch the agent worker to this room
+        print(f"1. Dispatching agent '{agent_name}' to room '{room_name}'...")
+        async with LiveKitAPI() as livekit_api:
+            await livekit_api.agent_dispatch.create_dispatch(
+                CreateAgentDispatchRequest(
+                    agent_name=agent_name,
+                    room=room_name,
+                )
             )
-        )
-        await lk.sip.create_sip_participant(
-            livekit_api.CreateSipParticipantRequest(
-                sip_trunk_id=trunk_id,
-                sip_call_to=to_number,
-                room_name=room_name,
-                participant_identity=f"sip-out-{uuid.uuid4().hex[:8]}",
-                participant_metadata=f'{{"caller_phone": "{to_number}"}}',
-            )
-        )
-    finally:
-        await lk.aclose()
+        print("   Agent dispatched successfully!")
 
-    print("✅ Call placed. The conversation will appear in Dashboard → Calls.")
+        # Step 2: Get Twilio stream connection URL for LiveKit room
+        print("2. Generating LiveKit Twilio stream URL...")
+        connect_url = await _get_twilio_connect_url(room_name)
 
+        # Step 3: Trigger Twilio outbound REST API call
+        print("3. Dialing phone via Twilio...")
+        result = _place_twilio_outbound_call_sync(connect_url)
+        call_sid = result.get("sid", "Unknown")
+        status = result.get("status", "Unknown")
+        
+        print(f"\n✅ Call queued successfully!")
+        print(f"   Twilio Call SID: {call_sid}")
+        print(f"   Status: {status}")
+        print(f"\n📲 Your phone ({to_number}) will ring in a few seconds.")
+        print("👉 IMPORTANT: Answer the call and PRESS 1 on your phone keypad to connect to the AI Agent!")
+
+    except Exception as e:
+        print(f"❌ Call placement failed: {e}")
 
 if __name__ == "__main__":
-    number = sys.argv[1] if len(sys.argv) > 1 else os.getenv("OUTBOUND_TEST_NUMBER", "")
-    agent = sys.argv[2] if len(sys.argv) > 2 else os.getenv("LIVEKIT_AGENT_ID") or None
-
-    if not number:
-        print("Usage: uv run python make_call.py <phone-number> [agent_id]")
-        sys.exit(1)
-
-    asyncio.run(place_call(number, agent))
+    asyncio.run(place_call())

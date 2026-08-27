@@ -1,5 +1,3 @@
-import { languageName } from "./languages";
-
 export interface AgentConfig {
   business_name: string;
   business_description: string;
@@ -10,55 +8,6 @@ export interface AgentConfig {
   language?: string;
   languages?: string[];
   voice?: string;
-}
-
-/**
- * Builds the LANGUAGE RULES section of the system prompt.
- *
- * This is critical: the TTS voice speaks whatever text the LLM produces, so
- * without explicit rules the LLM answers in English even when the agent's
- * language is Telugu/Hindi/etc.
- *
- * Grounded in Sarvam Bulbul TTS best practices:
- * - Native script is REQUIRED (Romanised Indic text sounds robotic — the
- *   most common integration mistake per Sarvam docs).
- * - Code-mixing is OFFICIALLY SUPPORTED: English words in English script
- *   inline with native-script sentences ("మీ order confirm అయింది").
- * - Natural pauses come from punctuation (commas, …, ।).
- *
- * Injected at RUNTIME by the agent-config endpoint (not stored), so rule
- * improvements apply to every existing agent without re-saving.
- */
-export function buildLanguageRules(config: Pick<AgentConfig, "language" | "languages">): string {
-  const codes = (config.languages && config.languages.length > 0
-    ? config.languages
-    : [config.language || "en-IN"]
-  ).filter(Boolean);
-  const primary = codes[0] || "en-IN";
-
-  const naturalHumanStyle = `SPEAK LIKE A REAL HUMAN (very important):
-- Write the base language in its NATIVE script only — never write ${codes.map((c) => languageName(c)).join("/")} words in English letters (Roman text sounds robotic on the voice).
-- Naturally mix common English words IN ENGLISH SCRIPT, exactly like real Indian people talk — words like order, confirm, price, meeting, details, appointment, basically, actually. Example style: "మీ order confirm అయింది, next meeting Monday lo జరుగుతుంది."
-- Use short sentences with natural pauses: commas and "…" where a human would breathe.
-- End sentences in the native language with "।" and full-English sentences with ".".
-- No emojis, no markdown, no symbols — this text becomes speech.`;
-
-  if (codes.length <= 1) {
-    return `LANGUAGE — MOST IMPORTANT RULE:
-- Always respond ONLY in ${languageName(primary)} (${primary}). Never reply in full English unless the caller themselves speaks English.
-- Greetings, numbers, names — everything in ${languageName(primary)}, with natural English word-mixing.
-
-${naturalHumanStyle}`;
-  }
-
-  const list = codes.map((c) => `${languageName(c)} (${c})`).join(", ");
-  return `LANGUAGE — MOST IMPORTANT RULE:
-- The caller may speak any of these languages: ${list}.
-- Detect the caller's language from their words each turn, and reply in that SAME language — with natural English word-mixing, just like the caller does.
-- If the caller mixes languages, mix yours the same way, naturally.
-- Start EVERY reply with its language tag: <lang:${primary}> for ${languageName(primary)}, <lang:hi-IN> for Hindi, and so on — then the reply text. The tag is consumed by the voice engine and is NEVER spoken or read out.
-
-${naturalHumanStyle}`;
 }
 
 /**
@@ -84,37 +33,52 @@ export function generateSystemPrompt(config: AgentConfig): string {
   let languageInstructions = '';
   
   if (languages.length > 1) {
-    // Multi-language agent
+    // Multi-language agent - Enhanced with Sarvam-specific instructions
     const allButLast = supportedLangNames.slice(0, -1).join(', ');
     const last = supportedLangNames[supportedLangNames.length - 1];
     
     languageInstructions = `
 
-LANGUAGE CAPABILITIES:
+LANGUAGE CAPABILITIES (CRITICAL - FOLLOW THESE RULES STRICTLY):
 You are a multilingual assistant that speaks ${allButLast} and ${last}.
 
-IMPORTANT LANGUAGE RULES:
-1. When greeting a new caller, greet them and immediately tell them which languages you speak, then ask which language they prefer.
-   Example: "Hello! You have reached ${config.business_name}. I can speak ${allButLast} and ${last}. Which language would you prefer to talk in?"
+IMPORTANT LANGUAGE RULES - YOU MUST FOLLOW THESE:
+1. DETECT THE USER'S LANGUAGE FIRST: Listen carefully to what language the user speaks. Then respond in THAT SAME LANGUAGE.
 
-2. Once the user speaks in a language, detect their language and respond in the SAME language.
+2. MIRROR THE USER'S LANGUAGE: 
+   - If the user speaks English, respond ONLY in English
+   - If the user speaks Telugu, respond ONLY in Telugu
+   - If the user speaks Hindi, respond ONLY in Hindi
+   - And so on for all supported languages
+   
+3. INITIAL GREETING: When starting a conversation, greet them and say: "Hello! You have reached ${config.business_name}. I can speak ${allButLast} and ${last}. Which language would you prefer to talk in?" Then wait for their response and use THEIR chosen language.
 
-3. If the user speaks in a language you support (${supportedLangNames.join(', ')}), continue the conversation in that language.
+4. NEVER FORCE A SINGLE LANGUAGE: Do NOT always speak in one language. ALWAYS match the user's language.
 
-4. If the user speaks in a language you DON'T support, politely tell them: "I apologize, but I can only speak ${allButLast} and ${last}. Could we continue in one of these languages?"
+5. LANGUAGE SWITCHING: If the user switches languages mid-conversation, immediately switch to their new language.
 
-5. Always respond in the language the user is currently speaking. Do NOT mix languages unless the user mixes them.
+6. UNSUPPORTED LANGUAGE: If the user speaks a language you don't support, politely say: "I apologize, but I can only speak ${allButLast} and ${last}. Could we continue in one of these languages?"
 
-6. If the user asks which languages you speak, tell them: "I can speak ${allButLast} and ${last}. Which language would you prefer?"
+7. THINK IN THE USER'S LANGUAGE: Before responding, identify the language the user just spoke, then formulate your entire response in that language.
+
+EXAMPLE SCENARIOS:
+- User says "Hello" in English → You respond in English
+- User says "Namaste" in Hindi → You respond in Hindi  
+- User says "Namaskaram" in Telugu → You respond in Telugu
+- User asks "What languages do you speak?" → Respond in the language they asked in, listing: "I can speak ${allButLast} and ${last}"
 `;
   } else {
-    // Single language agent
+    // Single language agent - Enhanced instructions
     const primaryLangName = languageNames[languages[0]] || languages[0];
     languageInstructions = `
 
-LANGUAGE CAPABILITIES:
-You speak ${primaryLangName}. All your responses should be in ${primaryLangName}.
-If a user speaks to you in a different language, politely inform them that you can only speak ${primaryLangName} and ask if they can communicate in ${primaryLangName}.
+LANGUAGE CAPABILITIES (CRITICAL):
+You speak ONLY ${primaryLangName}. 
+
+IMPORTANT RULES:
+1. ALL responses must be in ${primaryLangName} only.
+2. If a user speaks to you in a different language, politely inform them: "I apologize, but I can only speak ${primaryLangName}. Could we continue in ${primaryLangName}?"
+3. Never respond in any other language except ${primaryLangName}.
 `;
   }
 
@@ -158,15 +122,7 @@ SPEECH RULES (important for voice):
 
 /**
  * Generates an initial greeting for the agent.
- * Uses only simple, spoken-style words — text-to-speech reads this verbatim,
- * and unusual terms (like "AI assistant") can get mispronounced.
  */
 export function generateGreeting(config: AgentConfig): string {
-  const codes = (config.languages && config.languages.length > 0
-    ? config.languages
-    : [config.language || "en-IN"]
-  ).filter(Boolean);
-  const primary = codes[0] || "en-IN";
-  const tag = codes.length > 1 ? `<lang:${primary}> ` : "";
-  return `${tag}Hello! Thank you for calling ${config.business_name}. How can I help you today?`;
+  return `Hello! You have reached ${config.business_name}. I'm your AI assistant. How can I help you today?`;
 }

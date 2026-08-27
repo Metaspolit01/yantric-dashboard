@@ -105,10 +105,12 @@ export default function CreditsClient({ initialCredits, initialPlan, initialTran
         return;
       }
 
+      // Paid package - show payment UI with QR code
       setPayment(data);
       setUtr("");
       setCreatingOrder(false);
-    } catch {
+    } catch (err) {
+      console.error("Buy credits error:", err);
       setError("Connection error. Please try again.");
       setCreatingOrder(false);
     }
@@ -142,7 +144,8 @@ export default function CreditsClient({ initialCredits, initialPlan, initialTran
         if (txData.transactions) setTransactions(txData.transactions);
       }
       setVerifying(false);
-    } catch {
+    } catch (err) {
+      console.error("Verify UTR error:", err);
       setError("Connection error. Please try again.");
       setVerifying(false);
     }

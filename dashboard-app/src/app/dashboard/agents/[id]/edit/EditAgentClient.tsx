@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Save, Bot, Loader2, Sparkles, CheckCircle2, Check } from "lucide-react";
-import { AGENT_LANGUAGES } from "@/lib/languages";
+import { ArrowLeft, Save, Bot, Loader2, Sparkles, CheckCircle2 } from "lucide-react";
 
 interface Props {
   agent: any;
@@ -20,11 +19,7 @@ export default function EditAgentClient({ agent }: Props) {
     common_questions: agent.common_questions || "",
     responsibilities: agent.responsibilities || "",
     personality: agent.personality || "",
-    greeting_message: agent.greeting_message || "",
     language: agent.language || "en-IN",
-    languages: (agent.languages && agent.languages.length > 0)
-      ? agent.languages
-      : [agent.language || "en-IN"],
     voice: agent.voice || "priya",
   });
   const [saving, setSaving] = useState(false);
@@ -182,73 +177,6 @@ export default function EditAgentClient({ agent }: Props) {
             required
             className="yantric-input text-sm"
           />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-white/60 uppercase tracking-wider">6. First Greeting (spoken exactly as written when the call starts)</label>
-          <textarea
-            rows={2}
-            value={form.greeting_message}
-            onChange={e => setForm(p => ({ ...p, greeting_message: e.target.value }))}
-            placeholder="Hello! Thank you for calling us. How can I help you today?"
-            className="yantric-input text-sm"
-          />
-          <p className="text-[11px] text-white/30">
-            Type in English or any language — it is automatically converted to the agent's primary
-            language for speaking (with natural English word-mixing). Keep it short; the voice reads it exactly.
-          </p>
-        </div>
-
-        {/* Languages */}
-        <div className="flex flex-col gap-3">
-          <label className="text-xs font-semibold text-white/60 uppercase tracking-wider">Languages (agent mirrors each caller's language)</label>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {AGENT_LANGUAGES.map(opt => {
-              const selected = form.languages.includes(opt.code);
-              return (
-                <button
-                  key={opt.code}
-                  type="button"
-                  onClick={() => setForm(p => {
-                    const has = p.languages.includes(opt.code);
-                    let next = has ? p.languages.filter(c => c !== opt.code) : [...p.languages, opt.code];
-                    if (next.length === 0) next = ["en-IN"];
-                    return { ...p, languages: next, language: next[0] };
-                  })}
-                  className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
-                    selected
-                      ? "border-[#7C3AED]/50 bg-[#7C3AED]/10 text-white"
-                      : "border-white/[0.07] bg-white/[0.02] text-white/50 hover:border-white/15"
-                  }`}
-                >
-                  <span className="text-sm font-medium">{opt.native}<span className="block text-[10px] opacity-60">{opt.label}</span></span>
-                  {selected && <Check className="w-4 h-4 text-[#9d61ff]" />}
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-[11px] text-white/30">
-            The agent mirrors each caller's language. Saving regenerates the system prompt with your language rules.
-          </p>
-          {form.languages.length > 1 && (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-white/60 uppercase tracking-wider">Primary Language (greetings &amp; default voice)</label>
-              <select
-                value={form.language}
-                onChange={e => setForm(p => {
-                  const primary = e.target.value;
-                  return { ...p, language: primary, languages: [primary, ...p.languages.filter(c => c !== primary)] };
-                })}
-                className="yantric-input bg-[#0f101a] text-white max-w-xs"
-              >
-                {form.languages.map(code => (
-                  <option key={code} value={code} className="bg-[#12121a]">
-                    {AGENT_LANGUAGES.find(l => l.code === code)?.label ?? code}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
         </div>
 
         {/* Voice & Model Settings */}
