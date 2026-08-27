@@ -65,8 +65,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'content is required for type=text.' }, { status: 400 });
   }
 
-  let extractedContent = content || null;
-  let status = 'ready';
+  let extractedContent: string | null = null;
+  let status = 'processing';
   let errorMsg = null;
 
   // For URLs, fetch and extract text content
@@ -76,6 +76,11 @@ export async function POST(req: NextRequest, { params }: Params) {
         headers: { 'User-Agent': 'Yantric-Bot/1.0' },
         signal: AbortSignal.timeout(10000),
       });
+      
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+      
       const html = await res.text();
       // Basic HTML text extraction (strip tags)
       extractedContent = html
@@ -85,11 +90,20 @@ export async function POST(req: NextRequest, { params }: Params) {
         .replace(/\s+/g, ' ')
         .trim()
         .slice(0, 50000); // Limit to 50k chars
+      
+      if (!extractedContent || extractedContent.length < 10) {
+        throw new Error('No meaningful content extracted from URL');
+      }
+      
       status = 'ready';
     } catch (err) {
       errorMsg = `Failed to fetch URL: ${err instanceof Error ? err.message : 'Unknown error'}`;
       status = 'error';
+      extractedContent = null;
     }
+  } else if (type === 'text' && content) {
+    extractedContent = content;
+    status = 'ready';
   }
 
   const { data, error } = await supabase
